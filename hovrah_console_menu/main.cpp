@@ -46,23 +46,127 @@ public:
     }
 };
 
-class Label : public Widget {
+class Spacer: public Widget {
 private:
-    string text;
+    char text;
+    int spacer_size;
 public:
-    Label(string text){
+    Spacer(char text, int spacer_size){
         this->text = text;
+        this->spacer_size = spacer_size;
+    }
+
+    string getSpacer(){
+        string result = "";
+        for (int i = 0; i < spacer_size; i++){
+            result += text;
+        }
+        return result;
     }
 
     void Show(bool selected = false) override {
         if (selected)
-            cout << BLACK << text << BLACK << " <--- " << endl;
+            cout << BLACK << getSpacer() << BLACK << " <--- " << endl;
         else
-            cout << BLACK << text << "   " << endl;
+            cout << BLACK << getSpacer() << "   " << endl;
     }
 
+};
 
+class Label : public Widget {
+    private:
+        string text;
+    public:
+        Label(string text){
+            this->text = text;
+        }
+    
+        void Show(bool selected = false) override {
+            if (selected)
+                cout << BLACK << text << BLACK << " <--- " << endl;
+            else
+                cout << BLACK << text << "   " << endl;
+        }
+    
+    };
 
+class List : public Widget{
+private:
+    string text;
+    bool opened;
+    vector<Widget*> w;
+    int selectedIndex = 0;
+public:
+    List(string text){
+        this->text = text;
+        opened = false;
+        w.push_back(new Button("(X) Close list", [=](){opened = false;}));
+    }
+
+    void AddItem(Widget* item) {
+        w.push_back(item);
+    }
+
+    void Show(bool selected = false) override {
+        cout << BLACK << (opened ? "v " : "> ");
+
+        if (selected)
+            cout << GREEN << text << RED << " <--- " << endl;
+        else
+            cout << WHITE << text << "   " << endl;
+
+        if (opened) {
+            for (size_t i = 0; i < w.size(); i++) {
+                cout << BLACK << "|- ";
+                w[i]->Show(i == selectedIndex); 
+            }
+        }
+        
+    }
+
+    void OnSelect() override{
+        if (opened) {
+            if (!w.empty()) {
+                w[selectedIndex]->OnSelect();
+            }
+        } else {
+            opened = true;
+        }
+    }
+
+    void Input(Key key) {
+        if (opened) {
+            switch (key) {
+                case Key::UP:
+                    if (selectedIndex > 0) selectedIndex--;
+                    break;
+                case Key::DOWN:
+                    if (selectedIndex < w.size() - 1) selectedIndex++;
+                    break;
+                case Key::SELECT:
+                    w[selectedIndex]->OnSelect();
+                    break;
+                case Key::ESC:
+                    opened = false; // Закрываем список при нажатии ESC
+                    break;
+                default:
+                    break;
+            }
+        } else {
+            if (key == Key::SELECT) {
+                opened = true; // Открываем список, если он был закрыт
+            }
+        }
+    }
+
+    bool IsOpened() {
+        return opened;
+    }
+
+    ~List() { 
+        for (auto item : w) delete item; 
+    }
+    
 };
 
 class Input : public Widget{
@@ -76,9 +180,9 @@ public:
     }
     void Show(bool selected = false) override {
         if (selected)
-            cout << BLUE << text << RED << " <--- " << endl;
+            cout<< BLACK << "~ " << BLUE << text << RED << " <--- " << endl;
         else
-            cout << BLUE << text << "   " << endl;
+            cout<< BLACK << "~ " << WHITE << text << "   " << endl;
     }
     
     void OnSelect() override{
@@ -108,17 +212,27 @@ public:
         }
     }
 
-    void Input(Key key){
+    void Input(Key key) {
+        if (widgets[selectedIndex] != nullptr) {
+            auto* list = dynamic_cast<List*>(widgets[selectedIndex]); // ???
+            if (list && list->IsOpened()) { 
+                list->Input(key); // Делегируем управление внутрь списка
+                return;
+            }
+        }
+    
         switch (key) {
-            case Key::UP: // Вверх
+            case Key::UP:
                 if (selectedIndex > 0) selectedIndex--;
                 break;
-            case Key::DOWN: // Вниз
+            case Key::DOWN:
                 if (selectedIndex < widgets.size() - 1) selectedIndex++;
                 break;
-            case Key::SELECT: // Enter (выбор)
-               widgets[selectedIndex]->OnSelect();
-               break;
+            case Key::SELECT:
+                widgets[selectedIndex]->OnSelect();
+                break;
+            case Key::ESC:
+                exit(0);
         }
     }
     ~Menu() { // деструктор
@@ -140,14 +254,13 @@ Key getch() {
         case 'k' : return Key::UP;
         case 'j' : return Key::DOWN;
         case '\n' : return Key::SELECT;
-        case 27 : return Key::ESC;
-        case 127 : return Key::BACKSPACE;
+        case 'x' : return Key::ESC;
         default : return Key::UNKNOWN;
     }
 }
 
-void StartGame() {
-    cout << BLACK << "Start Pressed" << BLACK << endl;
+void Execute() {
+    cout << BLACK << "some button pressed" << BLACK << endl;
     sleep(2); // Имитация загрузки
 }
 
@@ -158,18 +271,29 @@ void ShowCurrentMenu(Menu &m){
 
 int main(){
     Menu root("MENU");  
-    Menu extra("EXTRA");
+    Menu help("HELP MENU");
 
     Menu* currentMenu = &root;
 
-    //root.widgets.push_back(new Label("Welcome!"));
-    root.widgets.push_back(new Button("Start", StartGame));
-    root.widgets.push_back(new Input("Input..", "Enter some text..."));
-    root.widgets.push_back(new Button("Extra menu", [&](){currentMenu = &extra;}));
-    root.widgets.push_back(new Button("Exit", [](){exit(0); cout << " Exit" << endl;}));
+    root.widgets.push_back(new Button("Press for help", [&](){currentMenu = &help;}));
+    root.widgets.push_back(new Spacer('~', 10));
+    root.widgets.push_back(new Input("Input 3D model`s path", "Enter path..."));
+    root.widgets.push_back(new Button("Start Engine", Execute));
+    
+    List* lst = new List("List");
+    List* sublst = new List("Sub List");
 
-    extra.widgets.push_back(new Button("Back", [&](){currentMenu = &root;}));
-    extra.widgets.push_back(new Label("test label"));
+    lst->AddItem(new Label("1 item"));
+    lst->AddItem(new Button("2 item", Execute));
+    lst->AddItem(new Label("3 item"));
+    lst->AddItem(sublst);
+
+    root.widgets.push_back(lst);
+    root.widgets.push_back(new Spacer('~', 10));
+    root.widgets.push_back(new Button("Exit", [](){exit(0); cout << " Exit" << endl;}));
+    help.widgets.push_back(new Label("Move up and down with 'k' and 'j' \nSelect with 'Enter' \nBack with 'x'"));
+    help.widgets.push_back(new Spacer('~', 10));
+    help.widgets.push_back(new Button("Back", [&](){currentMenu = &root;}));
 
 
     while (true)
