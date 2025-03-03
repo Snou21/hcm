@@ -8,7 +8,7 @@
 
 using namespace std;
 
-enum Key{
+enum Key{ // Перечисление клавиш
     UP,
     DOWN,
     ESC,
@@ -18,16 +18,16 @@ enum Key{
 };
 
 
-struct Widget {
+struct Widget { // абстрактный класс для всех виджетов
     virtual void Show(bool selected = false) = 0;
     virtual void OnSelect() {}; 
     virtual ~Widget() = default;
 };
 
-class Button : public Widget {
+class Button : public Widget { // класс кнопки
 private:
     string text;
-    function<void()> f;
+    function<void()> f; // полиморфная обвертка для выполняемой функции
 public:
     Button(string text, function<void()> f){
         this->text = text;
@@ -42,14 +42,14 @@ public:
     }
 
     void OnSelect() override{
-        f();
+        f(); // Выполняем функцию
     }
 };
 
-class Spacer: public Widget {
+class Spacer: public Widget { // класс отступа
 private:
     char text;
-    int spacer_size;
+    int spacer_size; // размер отступа
 public:
     Spacer(char text, int spacer_size){
         this->text = text;
@@ -73,7 +73,7 @@ public:
 
 };
 
-class Label : public Widget {
+class Label : public Widget { // класс текстовой метки
     private:
         string text;
     public:
@@ -90,20 +90,20 @@ class Label : public Widget {
     
     };
 
-class List : public Widget{
+class List : public Widget{ // класс списка
 private:
     string text;
     bool opened;
-    vector<Widget*> w;
+    vector<Widget*> w; // вектор виджетов списка
     int selectedIndex = 0;
 public:
     List(string text){
         this->text = text;
         opened = false;
-        w.push_back(new Button("(X) Close list", [=](){opened = false;}));
+        w.push_back(new Button("(X) Close list", [=](){opened = false;})); // Кнопка закрытия списка
     }
 
-    void AddItem(Widget* item) {
+    void AddItem(Widget* item) { // Добавление элемента в список
         w.push_back(item);
     }
 
@@ -115,7 +115,7 @@ public:
         else
             cout << WHITE << text << "   " << endl;
 
-        if (opened) {
+        if (opened) { // Выводим все элементы списка
             for (size_t i = 0; i < w.size(); i++) {
                 cout << BLACK << "|- ";
                 w[i]->Show(i == selectedIndex); 
@@ -127,14 +127,14 @@ public:
     void OnSelect() override{
         if (opened) {
             if (!w.empty()) {
-                w[selectedIndex]->OnSelect();
+                w[selectedIndex]->OnSelect(); // Вызываем метод OnSelect у выбранного элемента
             }
         } else {
             opened = true;
         }
     }
 
-    void Input(Key key) {
+    void Input(Key key) { // Обработка нажатий внутри списка
         if (opened) {
             switch (key) {
                 case Key::UP:
@@ -163,13 +163,13 @@ public:
         return opened;
     }
 
-    ~List() { 
+    ~List() {  // деструктор
         for (auto item : w) delete item; 
     }
     
 };
 
-class Input : public Widget{
+class Input : public Widget{ // класс поля ввода
 private:
     string text;
     string comment;
@@ -193,12 +193,12 @@ public:
     }
 };
 
-class Menu{
+class Menu{ // класс меню
 private:
-    string header;
+    string header; // заголовок меню
 public:
-    vector<Widget*> widgets; 
-    int selectedIndex = 0;
+    vector<Widget*> widgets; // вектор виджетов меню
+    int selectedIndex = 0; // индекс выбранного виджета
 
     Menu(string header){
         this->header = header;
@@ -208,20 +208,20 @@ public:
         CLEAR_SCREEN(); // Очистка консоли
         cout << GREEN << header << WHITE << endl << endl;
         for (int i = 0; i < widgets.size(); i++) {
-            widgets[i]->Show(i==selectedIndex);
+            widgets[i]->Show(i==selectedIndex); // Выводим все виджеты
         }
     }
 
     void Input(Key key) {
-        if (widgets[selectedIndex] != nullptr) {
-            auto* list = dynamic_cast<List*>(widgets[selectedIndex]); // ???
+        if (widgets[selectedIndex] != nullptr) { // Проверяем, что виджет существует
+            auto* list = dynamic_cast<List*>(widgets[selectedIndex]); // Пробуем привести виджет к типу List
             if (list && list->IsOpened()) { 
                 list->Input(key); // Делегируем управление внутрь списка
                 return;
             }
         }
     
-        switch (key) {
+        switch (key) { // Обработка нажатий
             case Key::UP:
                 if (selectedIndex > 0) selectedIndex--;
                 break;
@@ -240,7 +240,7 @@ public:
     }
 };
 
-Key getch() {
+Key getch() { // Функция для получения нажатой клавиши
     struct termios oldt, newt;
     char ch;
     tcgetattr(STDIN_FILENO, &oldt); // Получаем текущие настройки терминала
@@ -265,37 +265,39 @@ void Execute() {
 }
 
 
-void ShowCurrentMenu(Menu &m){
+void ShowCurrentMenu(Menu &m){ // Функция для вывода текущего меню
     m.Show();
 }
 
 int main(){
-    Menu root("MENU");  
-    Menu help("HELP MENU");
+    Menu root("MENU");  // Создаем меню
+    Menu help("HELP MENU"); // Создаем меню помощи
 
-    Menu* currentMenu = &root;
+    Menu* currentMenu = &root; // Указатель на текущее меню
 
+    // Добавляем виджеты в меню
     root.widgets.push_back(new Button("Press for help", [&](){currentMenu = &help;}));
     root.widgets.push_back(new Spacer('~', 10));
     root.widgets.push_back(new Input("Input 3D model`s path", "Enter path..."));
     root.widgets.push_back(new Button("Start Engine", Execute));
     
+    // Создаем список и добавляем его в меню
     List* lst = new List("List");
-    List* sublst = new List("Sub List");
-
+    // Добавляем элементы в список
     lst->AddItem(new Label("1 item"));
     lst->AddItem(new Button("2 item", Execute));
     lst->AddItem(new Label("3 item"));
-    lst->AddItem(sublst);
 
     root.widgets.push_back(lst);
     root.widgets.push_back(new Spacer('~', 10));
     root.widgets.push_back(new Button("Exit", [](){exit(0); cout << " Exit" << endl;}));
     help.widgets.push_back(new Label("Move up and down with 'k' and 'j' \nSelect with 'Enter' \nBack with 'x'"));
+
+    // Добавляем виджеты в меню помощи
     help.widgets.push_back(new Spacer('~', 10));
     help.widgets.push_back(new Button("Back", [&](){currentMenu = &root;}));
 
-
+    // Основной цикл программы
     while (true)
     {
         ShowCurrentMenu(*currentMenu);
